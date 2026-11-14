@@ -1,0 +1,6 @@
+{
+  "name": "Ferix AI",
+  "description": "Ask anything, get instant step-by-step help and smart suggestions for studying, writing, coding, and daily productivity.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
