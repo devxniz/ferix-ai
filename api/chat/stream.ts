@@ -60,7 +60,7 @@ export default async function handler(req: Request) {
             (t: { role?: string; text?: string }) =>
               t && (t.role === "user" || t.role === "model") && typeof t.text === "string" && t.text.trim()
           )
-          .slice(-10)
+          .slice(-8)
           .map((t: { role: "user" | "model"; text: string }) => ({
             role: t.role,
             parts: [{ text: t.text }],
@@ -99,6 +99,7 @@ export default async function handler(req: Request) {
               contents,
               config: {
                 systemInstruction: FERIX_SYSTEM_INSTRUCTION,
+                abortSignal: AbortSignal.timeout(6500),
                 ...(needsSearch ? { tools: [{ googleSearch: {} }] } : {}),
               },
             });
@@ -108,7 +109,8 @@ export default async function handler(req: Request) {
                 streamedAny = true;
                 sendEvent({ type: "delta", text: chunk.text });
               }
-              const gChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+              const candidate = chunk.candidates && chunk.candidates[0];
+              const gChunks = candidate?.groundingMetadata?.groundingChunks;
               if (Array.isArray(gChunks)) {
                 const newSources: Array<{ title: string; uri: string; domain?: string }> = [];
                 for (const g of gChunks) {
