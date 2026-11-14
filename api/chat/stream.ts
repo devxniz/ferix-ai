@@ -110,7 +110,7 @@ export default async function handler(req: Request) {
 
     const contents = [...formattedHistory, { role: "user", parts: userParts }];
 
-    // 2. Direct REST call to Gemini 3.8 Flash (zero SDK overhead, instant response)
+    // 2. Direct REST call to Gemini 3.8 Flash
     const geminiRes = await fetch(
       `https://googleapis.com{encodeURIComponent(
         apiKey
@@ -138,9 +138,11 @@ export default async function handler(req: Request) {
       return sseResponse([{ type: "error", error: errMsg, message: errMsg }]);
     }
 
+    const firstCandidate = Array.isArray(data?.candidates) ? data.candidates[0] : null;
+    const parts = Array.isArray(firstCandidate?.content?.parts) ? firstCandidate.content.parts : [];
     const replyText =
-      data?.candidates?.?.content?.parts
-        ?.map((p: { text?: string }) => p.text || "")
+      parts
+        .map((p: { text?: string }) => p.text || "")
         .join("")
         .trim() || "Done.";
 
