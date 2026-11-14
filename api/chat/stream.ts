@@ -81,43 +81,69 @@ export default async function handler(req: Request) {
             message
           );
 
-        const aiStream = await ai.models.generateContentStream({
-          model: "gemini-3.8-flash",
-          contents,
-          config: {
-            systemInstruction: FERIX_SYSTEM_INSTRUCTION,
-            ...(needsSearch ? { tools: [{ googleSearch: {} }] } : {}),
-          },
-        });
+        const modelsToTry = [
+          "gemini-3.8-flash-lite",
+          "gemini-3.8-flash",
+          "gemini-3.5-flash",
+        ];
 
         const seenUris = new Set<string>();
+        let succeeded = false;
+        let lastErr: unknown;
 
-        for await (const chunk of aiStream) {
-          if (chunk.text) {
-            sendEvent({ type: "delta", text: chunk.text });
-          }
-          const gChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
-          if (Array.isArray(gChunks)) {
-            const newSources: Array<{ title: string; uri: string; domain?: string }> = [];
-            for (const g of gChunks) {
-              const uri = g?.web?.uri;
-              if (typeof uri === "string" && uri && !seenUris.has(uri)) {
-                seenUris.add(uri);
-                let domain: string | undefined;
-                try {
-                  domain = new URL(uri).hostname.replace(/^www\./, "");
-                } catch {}
-                newSources.push({
-                  title: g?.web?.title || domain || "Verified Source",
-                  uri,
-                  domain,
-                });
+        for (const modelName of modelsToTry) {
+          let streamedAny = false;
+          try {
+            const aiStream = await ai.models.generateContentStream({
+              model: modelName,
+              contents,
+              config: {
+                systemInstruction: FERIX_SYSTEM_INSTRUCTION,
+                ...(needsSearch ? { tools: [{ googleSearch: {} }] } : {}),
+              },
+            });
+
+            for await (const chunk of aiStream) {
+              if (chunk.text) {
+                streamedAny = true;
+                sendEvent({ type: "delta", text: chunk.text });
+              }
+              const gChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+              if (Array.isArray(gChunks)) {
+                const newSources: Array<{ title: string; uri: string; domain?: string }> = [];
+                for (const g of gChunks) {
+                  const uri = g?.web?.uri;
+                  if (typeof uri === "string" && uri && !seenUris.has(uri)) {
+                    seenUris.add(uri);
+                    let domain: string | undefined;
+                    try {
+                      domain = new URL(uri).hostname.replace(/^www\./, "");
+                    } catch {}
+                    newSources.push({
+                      title: g?.web?.title || domain || "Verified Source",
+                      uri,
+                      domain,
+                    });
+                  }
+                }
+                if (newSources.length > 0) {
+                  sendEvent({ type: "sources", sources: newSources });
+                }
               }
             }
-            if (newSources.length > 0) {
-              sendEvent({ type: "sources", sources: newSources });
+
+            succeeded = true;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (streamedAny) {
+              throw err;
             }
           }
+        }
+
+        if (!succeeded && lastErr) {
+          throw lastErr;
         }
 
         sendEvent({ type: "done" });
