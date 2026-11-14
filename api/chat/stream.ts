@@ -82,11 +82,10 @@ export default async function handler(req: Request) {
           );
 
         const aiStream = await ai.models.generateContentStream({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.8-flash",
           contents,
           config: {
             systemInstruction: FERIX_SYSTEM_INSTRUCTION,
-            thinkingConfig: { thinkingBudget: 0 },
             ...(needsSearch ? { tools: [{ googleSearch: {} }] } : {}),
           },
         });
